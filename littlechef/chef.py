@@ -29,6 +29,11 @@ from fabric.contrib.project import rsync_project
 from littlechef import cookbook_paths, whyrun, lib, solo, colors
 from littlechef import LOGFILE, enable_logs as ENABLE_LOGS
 
+import json
+import gspread
+import datetime
+from oauth2client.client import SignedJwtAssertionCredentials
+
 # Path to local patch
 basedir = os.path.abspath(os.path.dirname(__file__).replace('\\', '/'))
 
@@ -83,6 +88,47 @@ def chef_test():
     return True
 
 
+def _gsheet_update_row(sheet, row_number, row_data):
+    for i in range(len(row_data)):
+        sheet.update_cell(row_number, i + 1, row_data[i])
+
+
+def record_chef_run(node, status):
+    proc = subprocess.Popen("git branch | awk '/\*/ { print $2; }'",
+                    shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    branch, error = proc.communicate()
+
+    proc = subprocess.Popen(['/usr/bin/whoami'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    user, error = proc.communicate()
+    node['littlechef'] = { 'branch': branch, 'user': user }
+
+    if "CHEFDEPLOYMENTTRACKER" not in os.environ:
+        print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
+        return
+
+    json_key = json.loads(os.environ['CHEFDEPLOYMENTTRACKER']) # json credentials you downloaded earlier
+    scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
+
+    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scopes) # get email and key from creds
+    
+    file = gspread.authorize(credentials) # authenticate with Google
+    sheet = file.open("Chef Deployment Tracker").sheet1 # open sheet
+    log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
+
+    hostname = node['name'].split('.')[0]
+    row_data = [hostname, branch, user, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), status]
+    hostnames = sheet.col_values(1)
+
+    log_sheet.insert_row(row_data)
+    i = 0
+    while i <= len(hostnames):
+       if i == len(hostnames) or hostname == hostnames[i]:
+           _gsheet_update_row(sheet, i+1, row_data)
+           break
+       i += 1
+
+
 def sync_node(node):
     """Builds, synchronizes and configures a node.
     It also injects the ipaddress to the node's config file if not already
@@ -104,7 +150,7 @@ def sync_node(node):
         # Synchronize the kitchen directory
         _synchronize_node(filepath, node)
         # Execute Chef Solo
-        _configure_node()
+        _configure_node(node)
     finally:
         _node_cleanup()
     return True
@@ -421,7 +467,7 @@ def _add_environment_lib():
         os.path.join(lib_path, 'environment.rb'), use_sudo=True)
 
 
-def _configure_node():
+def _configure_node(node):
     """Exectutes chef-solo to apply roles and recipes to a node"""
     print("")
     msg = "Cooking..."
@@ -446,6 +492,7 @@ def _configure_node():
     if (output.failed or "FATAL: Stacktrace dumped" in output or
             ("Chef Run complete" not in output and
              "Report handlers complete" not in output)):
+        record_chef_run(node, "\xf0\x9f\x8d\x8b failed")
         if 'chef-solo: command not found' in output:
             print(
                 colors.red(
@@ -463,5 +510,6 @@ def _configure_node():
         msg = "\n"
         if env.parallel:
             msg += "[{0}]: ".format(env.host_string)
+        record_chef_run(node, "successful")
         msg += "SUCCESS: Node correctly configured"
         print(colors.green(msg))

@@ -106,8 +106,8 @@ def record_chef_run(node, status):
     # if "CHEFDEPLOYMENTTRACKER" not in os.environ:
     #     print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
     #     return
-    gsheet = os.system("knife solo data bag show variables gsheet -F json &>/dev/null")
-    json_key = json.loads(gsheet) # json credentials you downloaded earlier
+    json_key = os.system("knife solo data bag show variables gsheet -F json &>/dev/null")
+#    json_key = json.loads(gsheet) # json credentials you downloaded earlier
     scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
 
     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scopes) # get email and key from creds

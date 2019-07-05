@@ -103,11 +103,11 @@ def record_chef_run(node, status):
     user, error = proc.communicate()
     node['littlechef'] = { 'branch': branch, 'user': user }
 
-    if "CHEFDEPLOYMENTTRACKER" not in os.environ:
-        print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
-        return
-
-    json_key = json.loads(os.environ['CHEFDEPLOYMENTTRACKER']) # json credentials you downloaded earlier
+    # if "CHEFDEPLOYMENTTRACKER" not in os.environ:
+    #     print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
+    #     return
+    gsheet_key = data_bag_item("variables", "google-sheets-shell-env")["CHEFDEPLOYMENTTRACKER"]
+    json_key = json.loads(gsheet_key) # json credentials you downloaded earlier
     scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
 
     credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scopes) # get email and key from creds

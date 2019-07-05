@@ -106,7 +106,7 @@ def record_chef_run(node, status):
     # if "CHEFDEPLOYMENTTRACKER" not in os.environ:
     #     print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
     #     return
-    gsheet_key = os.system(knife solo data bag show variables google-sheets-shell-env)
+    gsheet_key = os.system("knife solo data bag show variables google-sheets-shell-env")
     json_key = json.loads(gsheet_key["CHEFDEPLOYMENTTRACKER"]) # json credentials you downloaded earlier
     scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
 

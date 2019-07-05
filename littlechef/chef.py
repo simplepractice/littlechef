@@ -107,7 +107,7 @@ def record_chef_run(node, status):
     #     print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
     #     return
 
-    gsheet = subprocess.check_output("knife solo data bag show variables gsheet -F json", shell=True)
+    gsheet = subprocess.check_output("knife solo data bag show credentials gsheet -F json", shell=True)
     json_key = eval(gsheet) # json credentials you downloaded earlier
     scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
 

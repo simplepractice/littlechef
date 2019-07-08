@@ -118,7 +118,7 @@ def record_chef_run(node, status):
     log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
 
     hostname = node['name'].split('.')[0]
-    row_data = [hostname, branch, user, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), status]
+    row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status]
     hostnames = sheet.col_values(1)
 
     log_sheet.insert_row(row_data)
@@ -422,6 +422,13 @@ def ensure_berksfile_cookbooks_are_installed():
         berksfile_mtime = os.stat('Berksfile').st_mtime
         cookbooks_mtime = os.stat(berksfile_lock_path).st_mtime
         run_vendor = berksfile_mtime > cookbooks_mtime
+
+
+
+
+
+
+
 
     if run_vendor:
         if cookbooks_dir_exists:

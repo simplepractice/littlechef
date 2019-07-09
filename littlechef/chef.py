@@ -87,7 +87,6 @@ def chef_test():
         return False
     return True
 
-
 def _gsheet_update_row(sheet, row_number, row_data):
     for i in range(len(row_data)):
         sheet.update_cell(row_number, i + 1, row_data[i])
@@ -118,7 +117,7 @@ def record_chef_run(node, status):
     log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
 
     hostname = node['name'].split('.')[0]
-    row_data = [hostname, branch, user, "=NOW()", status]
+    row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status]
     hostnames = sheet.col_values(1)
 
     log_sheet.insert_row(row_data)

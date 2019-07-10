@@ -18,6 +18,7 @@ See http://wiki.opscode.com/display/chef/Anatomy+of+a+Chef+Run
 import os
 import shutil
 import json
+import requests
 import subprocess
 from copy import deepcopy
 
@@ -29,14 +30,12 @@ from fabric.contrib.project import rsync_project
 from littlechef import cookbook_paths, whyrun, lib, solo, colors
 from littlechef import LOGFILE, enable_logs as ENABLE_LOGS
 
-import json
 import gspread
 import datetime
 from oauth2client.client import SignedJwtAssertionCredentials
 
 # Path to local patch
 basedir = os.path.abspath(os.path.dirname(__file__).replace('\\', '/'))
-
 
 def save_config(node, force=False):
     """Saves node configuration
@@ -91,7 +90,6 @@ def _gsheet_update_row(sheet, row_number, row_data):
     for i in range(len(row_data)):
         sheet.update_cell(row_number, i + 1, row_data[i])
 
-
 def record_chef_run(node, status):
     proc = subprocess.Popen("git branch | awk '/\*/ { print $2; }'",
                     shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -101,10 +99,6 @@ def record_chef_run(node, status):
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     user, error = proc.communicate()
     node['littlechef'] = { 'branch': branch, 'user': user }
-
-    # if "CHEFDEPLOYMENTTRACKER" not in os.environ:
-    #     print("Environment variable CHEFDEPLOYMENTTRACKER is not set. Skipping tracker update.")
-    #     return
 
     gsheet = subprocess.check_output("knife solo data bag show credentials gsheet -F json", shell=True)
     json_key = eval(gsheet) # json credentials you downloaded earlier
@@ -127,6 +121,14 @@ def record_chef_run(node, status):
            _gsheet_update_row(sheet, i+1, row_data)
            break
        i += 1
+    # Post to Slack #engineering channel
+    post_message = "{0} successfully deployed [{1}] to *{2}*.".format(user, branch, hostname) if status == "successful" else "{0} failed to deploy [{1}] to *{2}*.".format(user, branch, hostname)
+    post_message = post_message.replace('\n','')
+    headers = {"Content-type":"application/json"}
+    encrypted_url = subprocess.check_output("knife solo data bag show credentials chef-slack -F json", shell=True)
+    url = eval(encrypted_url)['url']
+    payload = '{{"attachments": [ {{"color": "#00BD9D", "title": "Chef deploy messages", "text":"{0}", "mrkdwn": true}}]}}'.format(post_message) if status == "successful" else '{{"attachments": [ {{"color": "#E53D00", "title": "Chef deploy messages", "text":"{0}", "mrkdwn": true}}]}}'.format(post_message)
+    requests.post(url, data=payload, headers=headers)
 
 
 def sync_node(node):
@@ -421,13 +423,6 @@ def ensure_berksfile_cookbooks_are_installed():
         berksfile_mtime = os.stat('Berksfile').st_mtime
         cookbooks_mtime = os.stat(berksfile_lock_path).st_mtime
         run_vendor = berksfile_mtime > cookbooks_mtime
-
-
-
-
-
-
-
 
     if run_vendor:
         if cookbooks_dir_exists:

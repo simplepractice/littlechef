@@ -1,3 +1,5 @@
+require 'nyan-cat-chef-formatter'
+require 'chef/formatters/simple'
 file_cache_path "{{node_work_path}}/cache"
 cookbook_path {{cookbook_paths_list}}
 role_path "{{node_work_path}}/roles"
@@ -11,4 +13,7 @@ http_proxy "{{http_proxy}}"
 {% endif %}
 {% if https_proxy %}
 https_proxy "{{https_proxy}}"
+{% endif %}
+{% if no_proxy %}
+no_proxy "{{no_proxy}}"
 {% endif %}

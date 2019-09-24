@@ -468,10 +468,23 @@ def _add_environment_lib():
     put(os.path.join(basedir, 'environment.rb'),
         os.path.join(lib_path, 'environment.rb'), use_sudo=True)
 
+def _formatter_config():
+    global chef_formatter_command
+    formatters = ["doc", "min", "minimal", "nyan", "simple", "null"]
+    if "CHEF_FORMATTER" not in os.environ:
+        print(colors.yellow("\nEnvironment variable CHEF_FORMATTER is not set. Using \033[1m simple.\n"))
+        chef_formatter_command = "-F simple"
+    else:
+        if os.environ['CHEF_FORMATTER'] not in formatters:
+            print(colors.yellow("\nUnexpected value for CHEF_FORMATTER. Available options : {} \nUsing \033[1msimple \n")).format(', '.join(formatters))
+            chef_formatter_command = "-F simple"
+        else:
+            chef_formatter_command = "-F {}".format(os.environ['CHEF_FORMATTER'])
 
 def _configure_node(node):
     """Exectutes chef-solo to apply roles and recipes to a node"""
     print("")
+    _formatter_config()
     msg = "Cooking..."
     if env.parallel:
         msg = "[{0}]: {1}".format(env.host_string, msg)
@@ -480,7 +493,7 @@ def _configure_node(node):
     with settings(hide('stdout', 'warnings', 'running'), warn_only=True):
         sudo("mv {0} {0}.1".format(LOGFILE))
     # Build chef-solo command
-    cmd = "RUBYOPT=-Ku chef-solo"
+    cmd = "RUBYOPT=-Ku chef-solo {}".format(chef_formatter_command)
     if whyrun:
         cmd += " --why-run"
     cmd += ' -l {0} -j /etc/chef/node.json'.format(env.loglevel)

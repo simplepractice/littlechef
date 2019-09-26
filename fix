@@ -113,6 +113,21 @@ def parse_arguments():
         default=False,
         help=("Don't colorize the output")
     )
+    parser.add_argument(
+        "-F", dest="formatter",
+        default="simple",
+        help=("Select custom formatter. Formatters: min, minimal, null, doc, simple")
+    )
+    parser.add_argument(
+        "--lock-node", dest="lock_node",
+        default=None,
+        help=("Lock node or nodes_with*. Usage: fix --lock-node \"<reason>\" node:<nodename>")
+    )
+    parser.add_argument(
+        "--unlock-node", dest="unlock_node",
+        action="store_true",
+        help=("Unlock locked node(s). Usage: fix --unlock-node \"<reason>\" node:<nodename>")
+    )
     return parser, vars(parser.parse_args())
 
 
@@ -154,6 +169,21 @@ if __name__ == '__main__':
             if args['debug']:
                 littlechef.loglevel = 'debug'
                 littlechef.verbose = True
+            if args['formatter']:
+                if str(args['formatter']) in ['min', 'minimal', 'doc', 'simple', 'null']:
+                    littlechef.formatter = str(args['formatter'])
+                else:
+                    print("\33[33mFailed to parse formatter argument, using simple formatter\33[0m")
+                    littlechef.formatter = "simple"
+            if args['lock_node']:
+                try:
+                    littlechef.node_lock_reason = str(args['lock_node'])
+                    littlechef.lock_node = True
+                except:
+                    print("TESTING")
+                    littlechef.lock_node = False
+            if args['unlock_node']:
+                littlechef.unlock_node = True
             if args['environment'] is not None:
                 if not commands or ":" in args['environment']:
                     parser.error("No value given for --env")

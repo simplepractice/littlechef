@@ -72,7 +72,7 @@ def configure(current_node=None):
     # Set up chef solo configuration
     logging_path = os.path.dirname(LOGFILE)
     if not exists(logging_path):
-        sudo('mkdir -p {0}'.format(logging_path)
+        sudo('mkdir -p {0}').format(logging_path)
     if not exists('/etc/chef'):
         sudo('mkdir -p /etc/chef')
         sudo('chmod -R 655 /etc/chef')

@@ -74,8 +74,7 @@ def configure(current_node=None):
     if not exists(logging_path):
         sudo('mkdir -p {0}').format(logging_path)
     if not exists('/etc/chef'):
-        sudo('mkdir -p /etc/chef')
-        sudo('chmod -R 655 /etc/chef')
+        sudo('mkdir -p /etc/chef && chmod -R 774 /etc/chef')
     # Set parameters and upload solo.rb template
     reversed_cookbook_paths = cookbook_paths[:]
     reversed_cookbook_paths.reverse()
@@ -96,7 +95,7 @@ def configure(current_node=None):
         try:
             upload_template('client.rb.j2', '/etc/chef/client.rb',
                             context=data, use_sudo=True, backup=False,
-                            template_dir=BASEDIR, use_jinja=True, mode=0400)
+                            template_dir=BASEDIR, use_jinja=True, mode=0644)
         except SystemExit:
             error = ("Failed to upload '/etc/chef/client.rb'\nThis "
                      "can happen when the deployment user does not have a "
@@ -119,14 +118,14 @@ def lock(current_node, reason):
         try:
             upload_template('lockfile.j2', '/etc/chef/lockfile',
                             context=data, use_sudo=True, backup=False,
-                            template_dir=BASEDIR, use_jinja=True, mode=0644)
+                            template_dir=BASEDIR, use_jinja=True, mode=0764)
         except SystemExit:
             error = ("Failed to upload '/etc/chef/.lockfile'\nThis "
                      "can happen when the deployment user does not have a "
                      "home directory, which is needed as a temporary location")
             abort(error)
-            with hide('stdout'):
-                sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/lockfile'))
+    with hide('stdout'):
+        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/lockfile'))
 
 def unlock(current_node):
     current_node = current_node
@@ -147,7 +146,7 @@ def get_lock_info(current_node):
     with settings(hide('everything')):
         try:
             lock_info = StringIO()
-            get('/etc/chef/lockfile', lock_info)
+            get('/etc/chef/lockfile', lock_info, use_sudo=True)
             return lock_info.getvalue()
         except SystemExit:
             abort("Failed to get lock info")

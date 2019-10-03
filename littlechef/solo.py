@@ -146,7 +146,7 @@ def get_lock_info(current_node):
     with settings(hide('everything')):
         try:
             lock_info = StringIO()
-            get('/etc/chef/lockfile', lock_info, use_sudo=True)
+            get('/etc/chef/lockfile', lock_info)
             return lock_info.getvalue()
         except SystemExit:
             abort("Failed to get lock info")

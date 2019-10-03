@@ -184,7 +184,7 @@ def _node_runner():
         chef.sync_node(node)
 
 
-def deploy_chef(ask="yes", version="11"):
+def deploy_chef(ask="yes", version="13.12.14"):
     """Install chef-solo on a node"""
     env.host_string = lib.get_env_host_string()
     if ask == "no" or littlechef.noninteractive:

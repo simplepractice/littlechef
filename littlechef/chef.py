@@ -62,12 +62,12 @@ def _get_ipaddress(node):
     Returns True if ipaddress is added, False otherwise
 
     """
-    if "ipaddress" not in node:
+    if "public_ip" not in node:
         with settings(hide('stdout'), warn_only=True):
             output = sudo('ohai -l warn ipaddress')
         if output.succeeded:
             try:
-                node['ipaddress'] = json.loads(output)[0]
+                node['public_ip'] = json.loads(output)[0]
             except ValueError:
                 abort("Could not parse ohai's output for ipaddress"
                       ":\n  {0}".format(output))
@@ -354,7 +354,7 @@ def _add_merged_attributes(node, all_recipes, all_roles):
 
     # Get normal node attributes
     non_attribute_fields = [
-        'id', 'name', 'role', 'roles', 'recipes', 'run_list', 'ipaddress']
+        'id', 'name', 'role', 'roles', 'recipes', 'run_list', 'public_ip']
     node_attributes = {}
     for key in node:
         if key in non_attribute_fields:

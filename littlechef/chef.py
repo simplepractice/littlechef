@@ -449,6 +449,8 @@ def _node_cleanup():
             _remove_remote_node_data_bag()
             with settings(warn_only=True):
                 sudo("rm '/etc/chef/node.json'")
+                solo_node_cnf_file = os.path.join(env.node_work_path, "nodes", env.host_string.split('.')[0] + ".json")
+                sudo("rm -f {0}".format(solo_node_cnf_file))
                 if env.encrypted_data_bag_secret:
                     sudo("rm '/etc/chef/encrypted_data_bag_secret'")
 

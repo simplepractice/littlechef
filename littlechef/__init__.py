@@ -21,6 +21,9 @@ __cooking__ = False
 
 chef_environment = None
 
+lock_node = False
+unlock_node = False
+formatter = "simple"
 loglevel = "info"
 noninteractive = False
 verbose = False

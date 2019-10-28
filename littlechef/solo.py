@@ -14,12 +14,16 @@
 #
 """Chef Solo deployment"""
 import os
+import subprocess
 
 from fabric.api import *
+from fabric.operations import get
 from fabric.contrib.files import exists, upload_template
 from fabric.utils import abort
 
-from littlechef import cookbook_paths
+from StringIO import StringIO
+
+from littlechef import cookbook_paths, colors
 from littlechef import LOGFILE
 
 # Path to local patch
@@ -68,9 +72,9 @@ def configure(current_node=None):
     # Set up chef solo configuration
     logging_path = os.path.dirname(LOGFILE)
     if not exists(logging_path):
-        sudo('mkdir -p {0}'.format(logging_path))
+        sudo('mkdir -p {0}').format(logging_path)
     if not exists('/etc/chef'):
-        sudo('mkdir -p /etc/chef')
+        sudo('mkdir -p /etc/chef && chmod -R 774 /etc/chef && /opt/chef/embedded/bin/gem install chef-formatters-simple')
     # Set parameters and upload solo.rb template
     reversed_cookbook_paths = cookbook_paths[:]
     reversed_cookbook_paths.reverse()
@@ -83,18 +87,66 @@ def configure(current_node=None):
         'environment': current_node.get('chef_environment', '_default'),
         'verbose': "true" if env.verbose else "false",
         'http_proxy': env.http_proxy,
-        'https_proxy': env.https_proxy
+        'https_proxy': env.https_proxy,
+        'no_proxy': env.no_proxy,
+        'formatter': env.formatter
     }
     with settings(hide('everything')):
         try:
-            upload_template('solo.rb.j2', '/etc/chef/solo.rb',
+            upload_template('client.rb.j2', '/etc/chef/client.rb',
                             context=data, use_sudo=True, backup=False,
-                            template_dir=BASEDIR, use_jinja=True, mode=0400)
+                            template_dir=BASEDIR, use_jinja=True, mode=0644)
         except SystemExit:
-            error = ("Failed to upload '/etc/chef/solo.rb'\nThis "
+            error = ("Failed to upload '/etc/chef/client.rb'\nThis "
                      "can happen when the deployment user does not have a "
                      "home directory, which is needed as a temporary location")
             abort(error)
     with hide('stdout'):
-        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/solo.rb'))
+        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/client.rb'))
 
+# Lock node
+def lock(current_node, reason):
+    current_node = current_node
+    proc = subprocess.Popen(['/usr/bin/whoami'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    user, error = proc.communicate()
+    data = {
+        'reason': reason,
+        'author': user.rstrip()
+    }
+    with settings(hide('everything')):
+        try:
+            upload_template('lockfile.j2', '/etc/chef/lockfile',
+                            context=data, use_sudo=True, backup=False,
+                            template_dir=BASEDIR, use_jinja=True, mode=0764)
+        except SystemExit:
+            error = ("Failed to upload '/etc/chef/.lockfile'\nThis "
+                     "can happen when the deployment user does not have a "
+                     "home directory, which is needed as a temporary location")
+            abort(error)
+    with hide('stdout'):
+        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/lockfile'))
+
+def unlock(current_node):
+    current_node = current_node
+    with cd('/etc/chef/'):
+        try:
+            sudo('rm -f lockfile')
+            print(colors.green("{} has been unlocked.")).format(current_node['host_name'])
+        except SystemExit:
+            error = ("Failed to delete '/etc/chef/lockfile'\n "
+                     "This can happen when the deployment user does not have a"
+                     "home directory, which is needed as a temporary location")
+            abort(error)
+
+def node_locked(current_node):
+    return True if exists('/etc/chef/lockfile', use_sudo=True) else False
+
+def get_lock_info(current_node):
+    with settings(hide('everything')):
+        try:
+            lock_info = StringIO()
+            get('/etc/chef/lockfile', lock_info)
+            return lock_info.getvalue()
+        except SystemExit:
+            abort("Failed to get lock info")

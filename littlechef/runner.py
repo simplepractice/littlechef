@@ -36,6 +36,7 @@ env.chef_environment = littlechef.chef_environment
 env.node_work_path = littlechef.node_work_path
 env.eagerly_disconnect = True
 env.no_color = littlechef.no_color
+env.formatter = littlechef.formatter
 
 if littlechef.concurrency:
     env.output_prefix = True
@@ -147,10 +148,10 @@ def node(*nodes):
 
     # Check whether another command was given in addition to "node:"
     if not(littlechef.__cooking__ and
-            'node:' not in sys.argv[-1] and
-            'nodes_with_role:' not in sys.argv[-1] and
-            'nodes_with_recipe:' not in sys.argv[-1] and
-            'nodes_with_tag:' not in sys.argv[-1]):
+           'node:' not in sys.argv[-1] and
+           'nodes_with_role:' not in sys.argv[-1] and
+           'nodes_with_recipe:' not in sys.argv[-1] and
+           'nodes_with_tag:' not in sys.argv[-1]):
         # If user didn't type recipe:X, role:Y or deploy_chef,
         # configure the nodes
         with settings():
@@ -170,9 +171,12 @@ def _node_runner():
     node = lib.get_node(env.host_string)
 
     _configure_fabric_for_platform(node.get("platform"))
-
+    if littlechef.unlock_node:
+        chef.unlock_node(node)
     if __testing__:
         print "TEST: would now configure {0}".format(env.host_string)
+    elif littlechef.lock_node:
+        chef.lock_node(node,littlechef.node_lock_reason)
     else:
         lib.print_header("Configuring {0}".format(env.host_string))
         if env.autodeploy_chef and not chef.chef_test():
@@ -180,7 +184,7 @@ def _node_runner():
         chef.sync_node(node)
 
 
-def deploy_chef(ask="yes", version="11"):
+def deploy_chef(ask="yes", version="13.12.14"):
     """Install chef-solo on a node"""
     env.host_string = lib.get_env_host_string()
     if ask == "no" or littlechef.noninteractive:
@@ -443,6 +447,11 @@ def _readconfig():
         env.https_proxy = config.get('connection', 'https_proxy')
     except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
         env.https_proxy = None
+    # check for no_proxy
+    try:
+        env.no_proxy = config.get('connection', 'no_proxy')
+    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+        env.no_proxy = None
 
     # Check for an encrypted_data_bag_secret file and set the env option
     try:

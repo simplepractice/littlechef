@@ -74,6 +74,27 @@ def _get_ipaddress(node):
             return True
     return False
 
+# Lock/Unlock function callers
+def lock_node(node, reason):
+    """"Calls locker with settings,current_node and action variables"""
+    current_node = lib.get_node(node['name'])
+    if solo.node_locked(current_node):
+        content = json.loads(solo.get_lock_info(current_node))
+        print colors.yellow("Node {0} already locked by {1}.\nReason: {2}".format(current_node['host_name'], content['author'], content['reason']))
+        raise SystemExit
+    else:
+        solo.lock(current_node, reason)
+        print colors.green("Node {0} locked".format(current_node['host_name']))
+        record_chef_run(node, "successful", reason)
+
+def unlock_node(node):
+    """Calls unlocker from solo"""
+    current_node = lib.get_node(node['name'])
+    if solo.node_locked(current_node):
+        solo.unlock(current_node)
+        record_chef_run(node, "successful", "")
+    else:
+        print "Failed to unlock node. Node {0} is not locked.".format(current_node['host_name'])
 
 def chef_test():
     """Calls chef-solo on the remote node, returns True if successful,
@@ -86,11 +107,17 @@ def chef_test():
         return False
     return True
 
+def slack_notifier(message):
+    headers = {"Content-type":"application/json"}
+    encrypted_url = subprocess.check_output("knife solo data bag show credentials chef-slack -F json", shell=True)
+    url = eval(encrypted_url)['url']
+    requests.post(url, data=message, headers=headers)
+
 def _gsheet_update_row(sheet, row_number, row_data):
     for i in range(len(row_data)):
         sheet.update_cell(row_number, i + 1, row_data[i])
 
-def record_chef_run(node, status):
+def record_chef_run(node, status, lock_note):
     proc = subprocess.Popen("git branch | awk '/\*/ { print $2; }'",
                     shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     branch, error = proc.communicate()
@@ -99,7 +126,6 @@ def record_chef_run(node, status):
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     user, error = proc.communicate()
     node['littlechef'] = { 'branch': branch, 'user': user }
-
     gsheet = subprocess.check_output("knife solo data bag show credentials gsheet -F json", shell=True)
     json_key = eval(gsheet) # json credentials you downloaded earlier
     scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
@@ -111,7 +137,7 @@ def record_chef_run(node, status):
     log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
 
     hostname = node['name'].split('.')[0]
-    row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status]
+    row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status, lock_note]
     hostnames = sheet.col_values(1)
 
     log_sheet.insert_row(row_data)
@@ -124,12 +150,8 @@ def record_chef_run(node, status):
     # Post to Slack #engineering channel
     post_message = "{0} successfully deployed [{1}] to *{2}*.".format(user, branch, hostname) if status == "successful" else "{0} failed to deploy [{1}] to *{2}*.".format(user, branch, hostname)
     post_message = post_message.replace('\n','')
-    headers = {"Content-type":"application/json"}
-    encrypted_url = subprocess.check_output("knife solo data bag show credentials chef-slack -F json", shell=True)
-    url = eval(encrypted_url)['url']
     payload = '{{"attachments": [ {{"color": "#00BD9D", "title": "Chef deploy messages", "text":"{0}", "mrkdwn": true}}]}}'.format(post_message) if status == "successful" else '{{"attachments": [ {{"color": "#E53D00", "title": "Chef deploy messages", "text":"{0}", "mrkdwn": true}}]}}'.format(post_message)
-    requests.post(url, data=payload, headers=headers)
-
+    slack_notifier(payload)
 
 def sync_node(node):
     """Builds, synchronizes and configures a node.
@@ -141,6 +163,11 @@ def sync_node(node):
         lib.print_header("Skipping dummy: {0}".format(env.host))
         return False
     current_node = lib.get_node(node['name'])
+    # Check if node locked
+    if solo.node_locked(current_node):
+        content = json.loads(solo.get_lock_info(current_node))
+        print colors.yellow("Skipping node {0}.\nLocked by {1}.\nReason: {2}".format(current_node['host_name'], content['author'], content['reason']))
+        return False
     # Always configure Chef Solo
     solo.configure(current_node)
     ipaddress = _get_ipaddress(node)
@@ -496,7 +523,7 @@ def _configure_node(node):
     if (output.failed or "FATAL: Stacktrace dumped" in output or
             ("Chef Run complete" not in output and
              "Report handlers complete" not in output)):
-        record_chef_run(node, "\xf0\x9f\x8d\x8b failed")
+        record_chef_run(node, "\xf0\x9f\x8d\x8b failed", "")
         if 'chef-solo: command not found' in output:
             print(
                 colors.red(
@@ -514,6 +541,6 @@ def _configure_node(node):
         msg = "\n"
         if env.parallel:
             msg += "[{0}]: ".format(env.host_string)
-        record_chef_run(node, "successful")
+        record_chef_run(node, "successful", "")
         msg += "SUCCESS: Node correctly configured"
         print(colors.green(msg))

@@ -72,7 +72,7 @@ def configure(current_node=None):
     # Set up chef solo configuration
     logging_path = os.path.dirname(LOGFILE)
     if not exists(logging_path):
-        sudo('mkdir -p {0}').format(logging_path)
+        sudo('mkdir -p {0}'.format(logging_path))
     if not exists('/etc/chef'):
         sudo('mkdir -p /etc/chef && chmod -R 774 /etc/chef && /opt/chef/embedded/bin/gem install chef-formatters-simple')
     # Set parameters and upload solo.rb template

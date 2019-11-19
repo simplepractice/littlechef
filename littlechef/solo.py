@@ -93,16 +93,16 @@ def configure(current_node=None):
     }
     with settings(hide('everything')):
         try:
-            upload_template('client.rb.j2', '/etc/chef/client.rb',
+            upload_template('client.rb.j2', '/etc/chef/solo.rb',
                             context=data, use_sudo=True, backup=False,
                             template_dir=BASEDIR, use_jinja=True, mode=0644)
         except SystemExit:
-            error = ("Failed to upload '/etc/chef/client.rb'\nThis "
+            error = ("Failed to upload '/etc/chef/solo.rb'\nThis "
                      "can happen when the deployment user does not have a "
                      "home directory, which is needed as a temporary location")
             abort(error)
     with hide('stdout'):
-        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/client.rb'))
+        sudo('chown root:$(id -g -n root) {0}'.format('/etc/chef/solo.rb'))
 
 # Lock node
 def lock(current_node, reason):

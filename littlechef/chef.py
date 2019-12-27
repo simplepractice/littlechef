@@ -136,7 +136,8 @@ def record_chef_run(node, status, lock_note):
     sheet = file.open("Chef Deployment Tracker").sheet1 # open sheet
     log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
 
-    hostname = node['name'].split('.')[0]
+    # Remove 2 domain.com from name
+    hostname = '.'.join(node['name'].split('.')[0:-2])
     row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status, lock_note]
     hostnames = sheet.col_values(1)
 

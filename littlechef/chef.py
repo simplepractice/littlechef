@@ -33,9 +33,11 @@ from littlechef import LOGFILE, enable_logs as ENABLE_LOGS
 import gspread
 import datetime
 from oauth2client.client import SignedJwtAssertionCredentials
+import boto3
 
 # Path to local patch
 basedir = os.path.abspath(os.path.dirname(__file__).replace('\\', '/'))
+chef_tracker_bucket = 'chef-tracker.practicesimple.com'
 
 def save_config(node, force=False):
     """Saves node configuration
@@ -113,41 +115,76 @@ def slack_notifier(message):
     url = eval(encrypted_url)['url']
     requests.post(url, data=message, headers=headers)
 
-def _gsheet_update_row(sheet, row_number, row_data):
-    for i in range(len(row_data)):
-        sheet.update_cell(row_number, i + 1, row_data[i])
+def aws_credentials():
+    sts_client = boto3.client('sts')
+    assumed_role_object=sts_client.assume_role(
+            RoleArn='arn:aws:iam::818953113427:role/OrganizationAccountAccessRole',
+            RoleSessionName='chef-tracker'
+    )
+    return assumed_role_object['Credentials']
 
-def record_chef_run(node, status, lock_note):
+def git_branch():
     proc = subprocess.Popen("git branch | awk '/\*/ { print $2; }'",
                     shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     branch, error = proc.communicate()
+    return branch
 
-    proc = subprocess.Popen(['/usr/bin/whoami'],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    user, error = proc.communicate()
+def chef_tracker_update(data, host_data):
+    host = host_data.get('HOST')
+    element = filter(lambda x: x.get('HOST') == host, data)
+    if len(element) > 0:
+        index = data.index(filter(lambda x: x.get('HOST') == host, data)[0])
+        data[index] = host_data
+    else:
+        data.insert(0, host_data)
+    return sorted(data, key = lambda i: i['HOST'])
+
+def chef_tracker_json(name):
+    url = 'http://' + chef_tracker_bucket + '/' + name + '.json'
+    r = requests.get(url)
+    return r.json()
+
+def chef_tracker_upload(name, data):
+    filename = name + '.json'
+    credentials = aws_credentials()
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id = credentials['AccessKeyId'],
+        aws_secret_access_key = credentials['SecretAccessKey'],
+        aws_session_token = credentials['SessionToken'],
+    )
+    response = s3_client.put_object(
+        Bucket = chef_tracker_bucket,
+        Key = filename,
+        Body = json.dumps(data)
+    )
+
+
+def record_chef_run(node, status, lock_note):
+    user = os.environ['USER']
+    branch = git_branch()
     node['littlechef'] = { 'branch': branch, 'user': user }
-    gsheet = subprocess.check_output("knife solo data bag show credentials gsheet -F json", shell=True)
-    json_key = eval(gsheet) # json credentials you downloaded earlier
-    scopes = 'https://www.googleapis.com/auth/spreadsheets ' + "https://www.googleapis.com/auth/drive.file " + "https://www.googleapis.com/auth/drive"
-
-    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'].encode(), scopes) # get email and key from creds
-
-    file = gspread.authorize(credentials) # authenticate with Google
-    sheet = file.open("Chef Deployment Tracker").sheet1 # open sheet
-    log_sheet = file.open("Chef Deployment Tracker").get_worksheet(1)
 
     # Remove 2 domain.com from name
     hostname = '.'.join(node['name'].split('.')[0:-2])
-    row_data = [hostname, branch, user, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"), status, lock_note]
-    hostnames = sheet.col_values(1)
+    host_data = {
+            'HOST': hostname,
+            'BRANCH': branch,
+            'USER': user,
+            'TIME': datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+            'CSTATUS': status,
+            'ENV': node['chef_environment'],
+            'LOCK': lock_note
+            }
+    status_data = chef_tracker_json('status')
+    updated_status_data = chef_tracker_update(status_data, host_data)
+    chef_tracker_upload('status', updated_status_data)
 
-    log_sheet.insert_row(row_data)
-    i = 0
-    while i <= len(hostnames):
-       if i == len(hostnames) or hostname == hostnames[i]:
-           _gsheet_update_row(sheet, i+1, row_data)
-           break
-       i += 1
+    log_data = chef_tracker_json('log')
+    log_data.insert(0, host_data)
+    chef_tracker_upload('log', log_data)
+
+
     # Post to Slack #engineering channel
     post_message = "{0} successfully deployed [{1}] to *{2}*.".format(user, branch, hostname) if status == "successful" else "{0} failed to deploy [{1}] to *{2}*.".format(user, branch, hostname)
     post_message = post_message.replace('\n','')

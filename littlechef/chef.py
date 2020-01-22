@@ -127,7 +127,7 @@ def git_branch():
     proc = subprocess.Popen("git branch | awk '/\*/ { print $2; }'",
                     shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     branch, error = proc.communicate()
-    return branch
+    return branch.rstrip()
 
 def chef_tracker_update(data, host_data):
     host = host_data.get('HOST')
@@ -561,7 +561,7 @@ def _configure_node(node):
     if (output.failed or "FATAL: Stacktrace dumped" in output or
             ("Chef Run complete" not in output and
              "Report handlers complete" not in output)):
-        record_chef_run(node, "\xf0\x9f\x8d\x8b failed", "")
+        record_chef_run(node, "failed", "")
         if 'chef-solo: command not found' in output:
             print(
                 colors.red(

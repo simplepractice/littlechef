@@ -118,7 +118,7 @@ def slack_notifier(message):
 def aws_credentials():
     sts_client = boto3.client('sts')
     assumed_role_object=sts_client.assume_role(
-            RoleArn='arn:aws:iam::818953113427:role/OrganizationAccountAccessRole',
+            RoleArn='arn:aws:iam::526655127920:role/OrganizationAccountAccessRole',
             RoleSessionName='chef-tracker'
     )
     return assumed_role_object['Credentials']

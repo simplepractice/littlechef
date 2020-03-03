@@ -74,7 +74,9 @@ def configure(current_node=None):
     if not exists(logging_path):
         sudo('mkdir -p {0}'.format(logging_path))
     if not exists('/etc/chef'):
-        sudo('mkdir -p /etc/chef && chmod -R 774 /etc/chef && /opt/chef/embedded/bin/gem install chef-formatters-simple')
+        sudo('mkdir -m 774 -p /etc/chef')
+    if 1 == subprocess.call("/opt/chef/embedded/bin/gem list -eqi --silent chef-formatters-simple",stderr=None, shell=True):
+        sudo('/opt/chef/embedded/bin/gem install chef-formatters-simple')
     # Set parameters and upload solo.rb template
     reversed_cookbook_paths = cookbook_paths[:]
     reversed_cookbook_paths.reverse()

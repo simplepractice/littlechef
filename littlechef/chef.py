@@ -140,12 +140,26 @@ def chef_tracker_update(data, host_data):
     return sorted(data, key = lambda i: i['HOST'])
 
 def chef_tracker_json(name):
-    url = 'http://' + chef_tracker_bucket + '/' + name + '.json'
-    r = requests.get(url)
-    return r.json()
+    filename = 'tmp/' + name + '.json'
+    if os.path.isfile(filename):
+        f = open(filename, 'r')
+        r = f.read()
+        f.close()
+        return json.loads(r)
+    else:
+        url = 'http://' + chef_tracker_bucket + '/' + name + '.json'
+        r = requests.get(url)
+        f = open(filename, 'w')
+        f.write(r.text)
+        f.close()
+        return r.json()
 
 def chef_tracker_upload(name, data):
+    json_data = json.dumps(data)
     filename = name + '.json'
+    f = open('tmp/' + filename, 'w')
+    f.write(json_data)
+    f.close()
     credentials = aws_credentials()
     s3_client = boto3.client(
         's3',
@@ -156,7 +170,7 @@ def chef_tracker_upload(name, data):
     response = s3_client.put_object(
         Bucket = chef_tracker_bucket,
         Key = filename,
-        Body = json.dumps(data)
+        Body = json_data
     )
 
 

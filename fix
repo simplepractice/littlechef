@@ -4,6 +4,7 @@ from __future__ import print_function
 import argparse
 import sys
 import os
+import glob
 
 # Messages
 NO_ORDER = "No order given. Type 'fix -l' for a list of orders\n"
@@ -50,6 +51,11 @@ class DynamicFabOperations(object):
     def splitlines(self, keepends=False):
         return self.commands.splitlines(keepends)
 
+def clear_local_cache():
+    fileList = glob.glob('tmp/*.json')
+    for filePath in fileList:
+        if os.path.exists(filePath):
+            os.remove(filePath)
 
 def parse_arguments():
     """Gets the console arguments for Littlechef's fix command"""
@@ -196,6 +202,7 @@ if __name__ == '__main__':
                 sys.argv[:] = [fix_cmd] + ['-f', fabfile] + commands
             else:
                 sys.argv[:] = ['-f', fabfile] + commands
+            clear_local_cache()
             littlechef.__cooking__ = True
             from fabric import main
             main.main()

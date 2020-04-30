@@ -196,7 +196,7 @@ def record_chef_run(node, status, lock_note):
 
     log_data = chef_tracker_json('log')
     log_data.insert(0, host_data)
-    chef_tracker_upload('log', log_data)
+    chef_tracker_upload('log', log_data[:500])
 
 
     # Post to Slack #engineering channel

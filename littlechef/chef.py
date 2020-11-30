@@ -179,8 +179,7 @@ def record_chef_run(node, status, lock_note):
     branch = git_branch()
     node['littlechef'] = { 'branch': branch, 'user': user }
 
-    # Remove 2 domain.com from name
-    hostname = '.'.join(node['name'].split('.')[0:-2])
+    hostname = node['name']
     host_data = {
             'HOST': hostname,
             'BRANCH': branch,
